@@ -490,7 +490,8 @@ struct ODHelixGroove {
         g << "(SET Z ON " << formatGCodeDecimals<4>(majorOD) << " OD)\n";
         g << "(SET X ON LEFT FACE)\n\n";
 
-        g << "M0(EDIT HAAS SETTING 79 5TH AXIS DIAMETER TO THE MAJOR OD OF THE VANES " << formatGCodeDecimals<4>(majorOD) << " FOR FEEDRATE CALCULATION)\n\n";
+        g << "M0(EDIT HAAS SETTING 79 5TH AXIS DIAMETER TO THE)\n"; // haas complains long comment - added linebreak
+        g << "(MAJOR OD OF THE VANES " << formatGCodeDecimals<4>(majorOD) << " FOR FEEDRATE CALCULATION)\n\n";
 
         //////////////////////////
         // GROOVE OP
