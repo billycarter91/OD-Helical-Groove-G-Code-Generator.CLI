@@ -471,6 +471,14 @@ struct ODHelixGroove {
         bFilletInitialRight = isRight ? bFilletInitialRight : -bFilletInitialRight;
         bFilletMoveLeft = isRight ? -bFilletMoveLeft : bFilletMoveLeft;
         bFilletMoveRight = isRight ? bFilletMoveRight : -bFilletMoveRight;
+		// correct G2 or G3 direction for fillet based on handedness
+        std::string gWhat;
+        if (isRight) {
+            gWhat = "G3";
+        }
+        else {
+            gWhat = "G2";
+		}
 
         //////////////////////////
         // HEADER
@@ -480,6 +488,7 @@ struct ODHelixGroove {
         g << "(ProgrammerName Mo-Da-Year)\n";
         g << "(Material)\n";
         g << "(" << printHandedness << " HAND OD HELIX GROOVES)\n";
+        g << "(***POSTED FOR HAAS VF3***)\n";
         g << "(PROGRAMMED FOR A CHUCK ON THE RIGHT END OF MACHINE TABLE)\n";
         g << "(VERIFY B AXIS ISN'T REVERSED BY MACHINE PARAMETERS)\n\n";
 
@@ -583,14 +592,14 @@ struct ODHelixGroove {
             g << "G0 G90 X" << formatGCodeDecimals<4>(xFilletRightStart) << " Y" << formatGCodeDecimals<4>(yFilletRightStart) << "\n";
             g << "G0 Z.1\n";
             g << "G1 Z" << formatGCodeDecimals<4>(-grooveDepth) << " F" << formatGCodeDecimals<3>(ipmOneIPR) << " (.001 IPR)\n";
-            g << "G3 X" << formatGCodeDecimals<4>(xFilletRightEnd) << " Y" << formatGCodeDecimals<4>(yFilletRightEnd) << " R" << formatGCodeDecimals<4>(radiusFilletFull) << "\n";
+            g << gWhat << " X" << formatGCodeDecimals<4>(xFilletRightEnd) << " Y" << formatGCodeDecimals<4>(yFilletRightEnd) << " R" << formatGCodeDecimals<4>(radiusFilletFull) << "\n";
             g << "G0 Z5.\n";
             g << "G0 G91 B" << formatGCodeDecimals<3>(bFilletMoveLeft) << "\n";
             g << "(*****LEFT FILLET*****)\n";
             g << "G0 G90 X" << formatGCodeDecimals<4>(xFilletLeftStart) << " Y" << formatGCodeDecimals<4>(yFilletLeftStart) << "\n";
             g << "G0 Z.1\n";
             g << "G1 Z" << formatGCodeDecimals<4>(-grooveDepth) << " F" << formatGCodeDecimals<3>(ipmOneIPR) << " (.001 IPR)\n";
-            g << "G3 X" << formatGCodeDecimals<4>(xFilletLeftEnd) << " Y" << formatGCodeDecimals<4>(yFilletLeftEnd) << " R" << formatGCodeDecimals<4>(radiusFilletFull) << "\n";
+            g << gWhat << " X" << formatGCodeDecimals<4>(xFilletLeftEnd) << " Y" << formatGCodeDecimals<4>(yFilletLeftEnd) << " R" << formatGCodeDecimals<4>(radiusFilletFull) << "\n";
             g << "G0 Z5.\n";
             g << "G0 G91 B" << formatGCodeDecimals<3>(bFilletMoveRight) << "\n";
 
