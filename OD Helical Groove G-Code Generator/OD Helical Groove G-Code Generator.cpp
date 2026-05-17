@@ -471,6 +471,13 @@ struct ODHelixGroove {
         bFilletInitialRight = isRight ? bFilletInitialRight : -bFilletInitialRight;
         bFilletMoveLeft = isRight ? -bFilletMoveLeft : bFilletMoveLeft;
         bFilletMoveRight = isRight ? bFilletMoveRight : -bFilletMoveRight;
+        // sign handling for N3 y's based on handedness
+        if (isRight) {
+            yFilletRightStart = -yFilletRightStart;
+            yFilletRightEnd = -yFilletRightEnd;
+            yFilletLeftStart = -yFilletLeftStart;
+            yFilletLeftEnd = -yFilletLeftEnd;
+        }
 		// correct G2 or G3 direction for fillet based on handedness
         std::string gWhat;
         if (isRight) {
@@ -617,6 +624,7 @@ int main() {
     std::cout << "Copyright 2025 <billycarter.business@gmail.com>" << std::endl;
     std::cout << "=============================================================================" << std::endl
               << "                     OD Helical Groove G-code Generator                       " << std::endl
+              << "                       Posts For Haas VF3  (Imperial)                     " << std::endl
               << "                            Outputs to text file                   " << std::endl
               << "=============================================================================" << std::endl << std::endl;
     std::cout << "Note: You can end any of the dimensions in the suffix 'mm' and it\n";
