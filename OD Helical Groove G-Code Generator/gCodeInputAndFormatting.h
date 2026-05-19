@@ -1,4 +1,4 @@
-// gCodeInputAndFormatting.h V1.0.0.0
+// gCodeInputAndFormatting.h V1.2.0.0
 // Copyright (C) 2025 Billy Carter <billycarter.business@gmail.com>
 // This file is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
 // See the LICENSE file or <https://www.gnu.org/licenses/agpl-3.0.html> for details.
@@ -88,6 +88,56 @@ bool parseInputWithOptionalMM(const std::string& input, bool allowMM, bool requi
         return true;
     }
     errorMsg = "Invalid input format.";
+    return false;
+}
+
+// Parse cutter speed input allowing an optional single 'm' suffix (meters per minute).
+// Examples accepted: "200" (interpreted as sfpm), "60m" (interpreted as 60 meters/min -> converted to sfpm).
+bool parseCutterSpeedInput(const std::string& input, double& result, std::string& errorMsg)
+{
+    // reuse similar patterns as parseInputWithOptionalMM
+    std::regex fractionPattern(R"(^(-?\d+)/(-?\d+)$)");
+    std::regex decimalPattern(R"(^-?(?:[0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)$)");
+
+    std::string core = input;
+    // If user typed "mm" treat as invalid for cutter speed (they probably meant mm unit which is not valid here)
+    std::string dummy;
+    if (endsWithMM(input, dummy)) {
+        errorMsg = "Invalid unit for cutter speed. Use plain number (sfpm) or append single 'm' for meters/min.";
+        return false;
+    }
+
+    bool inputInMeters = false;
+    if (!core.empty()) {
+        char last = core[core.size() - 1];
+        if (last == 'm' || last == 'M') {
+            inputInMeters = true;
+            core = core.substr(0, core.size() - 1);
+        }
+    }
+
+    std::smatch match;
+    if (std::regex_match(core, match, fractionPattern)) {
+        int num = std::stoi(match[1]);
+        int den = std::stoi(match[2]);
+        if (den == 0) {
+            errorMsg = "Denominator cannot be zero.";
+            return false;
+        }
+        double value = static_cast<double>(num) / den;
+        if (inputInMeters) value *= 3.280839895; // meters -> feet
+        result = value;
+        return true;
+    }
+    if (std::regex_match(core, match, decimalPattern)) {
+        double val;
+        try { val = std::stod(core); }
+        catch (...) { errorMsg = "Invalid numeric input for cutter speed."; return false; }
+        if (inputInMeters) val *= 3.280839895; // meters -> feet
+        result = val;
+        return true;
+    }
+    errorMsg = "Invalid input format for cutter speed.";
     return false;
 }
 
@@ -282,7 +332,7 @@ double roundOneDecimal(double d)
 //also removes leading zeros (e.g. .2 instead of 0.2) and trailing zeros (e.g. 1. instead of 1.0)
 //for no decimal e.g. for RPM, you would want to restrict user input or convert to an int before printing the value so this function isn't used in that case
 template <int numDecimalPlaces>
-std::string formatGCodeDecimals(double val) { // was fmtNum4
+std::string formatGCodeDecimals(double val) {
     static_assert(numDecimalPlaces >= 1 && numDecimalPlaces <= 6, "numDecimalPlaces must be 1-6");
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(numDecimalPlaces) << val;
