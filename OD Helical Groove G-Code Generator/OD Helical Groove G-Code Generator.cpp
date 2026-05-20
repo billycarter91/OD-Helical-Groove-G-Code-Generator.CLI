@@ -578,7 +578,7 @@ struct ODHelixGroove {
         // cut strategy selection
         if (fabs(normalGrooveWidth - cutterDiameter) < EPSILON) {
             gMazak << "    (*****SINGLE PATH WITH ON-SIZE TOOL*****)\n";
-            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4) << "\n";
+            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4 * 0.5) << "\n";
             gMazak << "    G1 X" << formatGCodeDecimals<3>(forwardX * 25.4) << " C" << formatGCodeDecimals<3>(-forwardB) << "\n";
             gMazak << "      G07.1 C0\n";
             gMazak << "    G0 Z50.\n";
@@ -588,12 +588,12 @@ struct ODHelixGroove {
             gMazak << "    (*****DUAL PATH WITH UNDERSIZED TOOL*****)\n";
             gMazak << "    (FORWARD PASS ON ONE WALL)\n";
             gMazak << "    G1 Y" << formatGCodeDecimals<3>(forwardYOffset * 25.4) << "\n";
-            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4) << "\n";
+            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4 * 0.5) << "\n";
             gMazak << "    G1 X" << formatGCodeDecimals<3>(forwardX * 25.4) << " C" << formatGCodeDecimals<3>(-forwardB) << "\n";
             gMazak << "      G07.1 C0\n";
             gMazak << "    (REVERSE PASS ON OPPOSITE WALL)\n";
             gMazak << "    G1 Y" << formatGCodeDecimals<3>(returnYOffset * 2.0 * 25.4) << "\n";
-            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4) << "\n";
+            gMazak << "      G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4 * 0.5) << "\n";
             gMazak << "    G1 X" << formatGCodeDecimals<3>(returnX * 25.4) << " C" << formatGCodeDecimals<3>(-returnB) << "\n";
             gMazak << "      G07.1 C0\n";
             gMazak << "    G0 Z50.\n";
@@ -852,7 +852,7 @@ int main() {
 
     std::cout << "Copyright 2025 <billycarter.business@gmail.com>" << std::endl;
     std::cout << "=============================================================================" << std::endl
-        << "                  OD Helical Groove G-code Generator v1.2.0                  " << std::endl
+        << "                  OD Helical Groove G-code Generator v1.2.1                  " << std::endl
         << "            Creates .eia file for Mazak Integrex i-350H  (Metric)            " << std::endl
         << "                  Creates .nc file for Haas VF3  (Imperial)                  " << std::endl
         << "=============================================================================" << std::endl << std::endl;
