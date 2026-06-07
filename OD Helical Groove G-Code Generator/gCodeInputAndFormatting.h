@@ -1,4 +1,4 @@
-// gCodeInputAndFormatting.h V1.2.0.0
+// gCodeInputAndFormatting.h V1.3.0.0
 // Copyright (C) 2025 Billy Carter <billycarter.business@gmail.com>
 // This file is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
 // See the LICENSE file or <https://www.gnu.org/licenses/agpl-3.0.html> for details.
@@ -285,6 +285,52 @@ char userInputLR()
                 }
             }
             // Ignore all other characters
+        }
+    }
+}
+
+// Allow the user to input Y/N
+char userInputYN()
+{
+    std::string input;
+
+    while (true) {
+        if (_kbhit()) {
+            char ch = _getch();
+
+            if (ch == SPECIAL_KEY_PREFIX_1 || ch == SPECIAL_KEY_PREFIX_2) {
+                _getch();
+                continue;
+            }
+
+            if (ch == ESC) {
+                throw std::runtime_error("EscapePressed");
+            }
+            if (ch == ENTER) {
+                std::cout << std::endl;
+                if (input.size() == 1 && (input[0] == 'y' || input[0] == 'Y' || input[0] == 'n' || input[0] == 'N')) {
+                    return input[0];
+                }
+                else {
+                    std::cout << "Enter 'y' or 'n': ";
+                    input.clear();
+                }
+                continue;
+            }
+            if (ch == BACKSPACE) {
+                if (!input.empty()) {
+                    input.pop_back();
+                    std::cout << "\b \b";
+                }
+                continue;
+            }
+
+            if (ch == 'y' || ch == 'Y' || ch == 'n' || ch == 'N') {
+                if (input.empty()) {
+                    input += ch;
+                    std::cout << ch;
+                }
+            }
         }
     }
 }

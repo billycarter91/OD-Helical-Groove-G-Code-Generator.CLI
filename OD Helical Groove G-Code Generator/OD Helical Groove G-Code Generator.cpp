@@ -6,6 +6,7 @@
 #include "gCodeInputAndFormatting.h" // Utility functions for input validation and G-Code formatting
 
 //v1.2 expanded "post processor" to handle mazak integrex i-350h (in addition to original target machine haas vf3)
+//v1.3: added edgebreak option to groove OD with chamfer tool. Hardcoded parameters for simplicity.
 
 struct ODHelixGroove {
     // user input variables
@@ -25,6 +26,7 @@ struct ODHelixGroove {
     int sfpm;
     double ipt;
     double xClear;
+    bool addChamferEdgeBreak = false;
 
     const double PI = 3.141593; // PI with 6 significant digits for gcode math
     const double EPSILON = 1e-4; // Used to compare floating-point values, accounts for rounding error due to binary representation limits. e.g. use if(abs(currentZ - roughFloorZ) < EPSILON) instead of if(currentZ == roughFloorZ)
@@ -36,7 +38,7 @@ struct ODHelixGroove {
     // NOTE: on numeric userInput...() calls, you can pass true as an argument to allow 'mm' suffix - see "gCodeInputAndFormatting.h"
     void promptInput() {
         int state = 0;
-        while (state < 17) {
+        while (state < 18) {
             try {
                 switch (state) {
                 case 0: {
@@ -45,7 +47,7 @@ struct ODHelixGroove {
                     helixAngleDeg = roundFourDecimal(helixAngleDeg);
                     std::cout << "You entered: " << formatGCodeDecimals<4>(helixAngleDeg) << "\n";
                     if (helixAngleDeg >= 90 || helixAngleDeg < EPSILON) {
-                        std::cout << "Must be between 0 and 90 degrees. 90 is parallel to the part'saxis of rotation.\n";
+                        std::cout << "Must be between 0 and 90 degrees. 90 is parallel to the part's axis of rotation.\n";
                         continue;
                     }
                     std::cout << std::endl;
@@ -155,7 +157,7 @@ struct ODHelixGroove {
                     xEnd = roundFourDecimal(xEnd);
                     std::cout << "You entered: " << formatGCodeDecimals<4>(xEnd) << "\n";
                     if (xEnd <= xStart) {
-                        std::cout << "[WARNING] The End point must be closer to the chuck than the Start point.\n";
+                        std::cout << "\n[WARNING] The End point must be closer to the chuck than the Start point.\n";
                         continue;
                     }
                     std::cout << std::endl;
@@ -194,7 +196,7 @@ struct ODHelixGroove {
                     // Check for wiping out the vane with an oversize fillet
                     if (edgebreakRadius > (roundFourDecimal(normalVaneWidth / 2))) {
                         std::cout << "\n[NOTE] The normal vane width (remaining material) is " << formatGCodeDecimals<4>(normalVaneWidth) << " wide.\n";
-                        std::cout << "[WARNING] The edgebreak radius cannot exceed half of that or R" << formatGCodeDecimals<4>(roundFourDecimal(normalVaneWidth / 2)) << "\n";
+                        std::cout << "\n[WARNING] The edgebreak radius cannot exceed half of that or R" << formatGCodeDecimals<4>(roundFourDecimal(normalVaneWidth / 2)) << "\n";
                         std::cout << "Press Enter to retry...";
                         while (true) {
                             if (_kbhit()) {
@@ -217,7 +219,7 @@ struct ODHelixGroove {
                         std::cout << "[NOTE]: The circumferential vane width (aka the vane width when cross-sectioned at " << formatGCodeDecimals<4>(helixAngleDeg) << " deg) is " << formatGCodeDecimals<4>(circumferentialVaneWidth) << "\n";
                         std::cout << "[NOTE]: An edgebreak radius of " << formatGCodeDecimals<4>(edgebreakRadius) << " will remove " << formatGCodeDecimals<4>(circumferentialVaneRemovalFromFilletCut) << " from the circumferential vane width at the exposed face\n";
                         if ((circumferentialVaneRemovalFromFilletCut / std::cos((helixAngleDeg / 2.0) * PI / 180.0)) > cutterDiameter) {
-                            std::cout << "[WARNING]: This fillet and tool combination will leave an uncut island.\n";
+                            std::cout << "\n[WARNING]: This fillet and tool combination will leave an uncut island.\n";
                             std::cout << "Choose a larger tool or a smaller fillet.\n";
                             std::cout << "Press Enter to retry...";
                             while (true) {
@@ -272,6 +274,60 @@ struct ODHelixGroove {
                     break;
                 }
                 case 12: {
+                    std::cout << "Add .010\" chamfer with 90 degree chamfer tool? (Y/N): ";
+                    char yn = userInputYN();
+                    addChamferEdgeBreak = (yn == 'y' || yn == 'Y');
+                    std::cout << "You entered: " << (addChamferEdgeBreak ? "Yes" : "No") << "\n";
+                    if (addChamferEdgeBreak == true) {
+                        std::cout << "[NOTE] The chamfer toolpath is hardcoded for a sharp-tipped carbide chamfer tool as follows:\n";
+                        std::cout << ".060\" Tooltip Depth and .050\" off the wall creating a .010\" chamfer.\n";
+                        std::cout << "180 FPM (5730 RPM) and .010 IPR (57.3 IPM)\n";
+                        std::cout << "If these parameters do not work for your use case, then don't use the chamfer option.\n";
+                        if (normalGrooveWidth < .100) {
+                            std::cout << "\n[WARNING]: This groove width is too narrow for the hardcoded .050\" chamfer tool offset.\n";
+                            std::cout << "You may not use the chamfer option.\n";
+                            std::cout << "Press Enter to retry...";
+                            while (true) {
+                                if (_kbhit()) {
+                                    char ch = _getch();
+                                    if (ch == ENTER) {
+                                        std::cout << std::endl << std::endl;
+                                        break;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        else if (grooveDepth < .060) {
+                            std::cout << "\n[WARNING]: This groove depth is too shallow for the hardcoded .060\" chamfer tool depth.\n";
+                            std::cout << "You may not use the chamfer option.\n";
+                            std::cout << "Press Enter to retry...";
+                            while (true) {
+                                if (_kbhit()) {
+                                    char ch = _getch();
+                                    if (ch == ENTER) {
+                                        std::cout << std::endl << std::endl;
+                                        break;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        std::cout << "Press Enter to continue...";
+                        while (true) {
+                            if (_kbhit()) {
+                                char ch = _getch();
+                                if (ch == ENTER) {
+                                    std::cout << std::endl << std::endl;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    std::cout << std::endl;
+                    break;
+                }
+                case 13: {
                     std::cout << "Enter Number of Flutes on Endmill: ";
                     numFlutes = userInputPos();
                     numFlutes = static_cast<int>(round(numFlutes));
@@ -287,7 +343,7 @@ struct ODHelixGroove {
                     std::cout << std::endl;
                     break;
                 }
-                case 13: {
+                case 14: {
                     std::cout << "Enter Cutter Speed (feet/min, or append a single 'm' for meters/min): ";
                     {
                         // Allow a single trailing 'm' for meters/min (will be converted to feet/min).
@@ -312,7 +368,7 @@ struct ODHelixGroove {
                     }
                     break;
                 }
-                case 14: {
+                case 15: {
                     std::cout << "Enter Chipload (ipt): ";
                     ipt = userInputPos(true);
                     ipt = roundFourDecimal(ipt);
@@ -328,7 +384,7 @@ struct ODHelixGroove {
                     std::cout << std::endl;
                     break;
                 }
-                case 15: {
+                case 16: {
                     std::cout << "Enter Clearance Gap between tool and cutting point (inches): ";//was "Enter Clearance Gap in X", removed "in X" bc clearance gap in X for haas mill, z for mazak integrex.Although after g68 plane rotation, integrex behaves as a mill so 'x' could still be valid, but removed reference to remove confusion
                     xClear = userInputPos(true);
                     xClear = roundFourDecimal(xClear);
@@ -344,7 +400,7 @@ struct ODHelixGroove {
                     std::cout << std::endl;
                     break;
                 }
-                case 16: {
+                case 17: {
                     std::cout << "Press Enter to generate gcode (or Escape to go back): ";
                     while (true) {
                         if (_kbhit()) {
@@ -379,7 +435,7 @@ struct ODHelixGroove {
 
     void logInputs() {
         // prompt labels strictly for the input log.txt string
-        const char* promptLabel[16] = {
+        const char* promptLabel[17] = {
             "Helix Angle (degrees)",
             "Normal Groove Width (inches)",
             "Lead (inches)",
@@ -392,13 +448,14 @@ struct ODHelixGroove {
             "Feature End Position (inches, face of feature nearest chuck)",
             "Cutter Diameter (inches)",
             "Edgebreak Radius (inches)",
+            "Add Chamfer Edgebreak (Y/N)",
             "Number of Flutes",
             "Cutter Speed (sfpm)",
             "Feedrate (ipt)",
             "Clearance Gap (inches)"
         };
         // Append all prompt labels and final user inputs to the input log
-        for (int i = 0; i < 16; ++i) {
+        for (int i = 0; i < 17; ++i) {
             std::string value;
             switch (i) {
             case 0:  value = formatGCodeDecimals<4>(helixAngleDeg); break;
@@ -413,10 +470,11 @@ struct ODHelixGroove {
             case 9:  value = formatGCodeDecimals<4>(xEnd); break;
             case 10: value = formatGCodeDecimals<4>(cutterDiameter); break;
             case 11: value = formatGCodeDecimals<4>(edgebreakRadius); break;
-            case 12: value = std::to_string(numFlutes); break;
-            case 13: value = std::to_string(sfpm); break;
-            case 14: value = formatGCodeDecimals<4>(ipt); break;
-            case 15: value = formatGCodeDecimals<4>(xClear); break;
+            case 12: value = addChamferEdgeBreak ? "Yes" : "No"; break;
+            case 13: value = std::to_string(numFlutes); break;
+            case 14: value = std::to_string(sfpm); break;
+            case 15: value = formatGCodeDecimals<4>(ipt); break;
+            case 16: value = formatGCodeDecimals<4>(xClear); break;
             }
             inputLog += std::string(promptLabel[i]) + ": " + value + "\n";
         }
@@ -501,6 +559,14 @@ struct ODHelixGroove {
             gWhat = "G2";
         }
 
+        // N4 variables - .010 chamfer
+        double chamferBackoff = 0.050; // inches Hardcoded
+        double chamferDrop = 0.060; // inches Hardcoded = .010" chamfer
+        double forwardChamferOffset = -roundFourDecimal((normalGrooveWidth - (chamferBackoff * 2)) / (2.0 * std::sin(helixAngleDeg * PI / 180.0))); // same math as 'yOffsetToWall', .050" from wall hardcoded = .100" tool dia at wall interface
+        double returnChamferOffset = -forwardChamferOffset;
+        int chamferRPM = 5730; //180 FPM Hardcoded for .120" effective tool dia at .060" hardcoded depth
+        double chamferIPM = 57.3; //.010 IPR Hardcoded
+
 
         /////////////////////////////////////////////////////////////////////////////
         /////////////////////////////////////////////////////////////////////////////
@@ -509,6 +575,7 @@ struct ODHelixGroove {
         /////////////////////////////////////////////////////////////////////////////
         int mpm = sfpm / 3.280839895; //feet/min to meters/min
         double mmpt = ipt * 25.4; //inches per tooth to mm per tooth
+        double mmprChamfer = .254; // hardcoded mm per rev
 
         //////////////////////////
         // HEADER
@@ -519,6 +586,10 @@ struct ODHelixGroove {
 
         gMazak << "M0 (EDIT VARIABLE #100 TO YOUR TOOL NUMBER)\n";
         gMazak << "#100 = 999 (CHANGE \"999\" TO YOUR TOOL NUMBER FOR THE " << formatGCodeDecimals<2>(cutterDiameter * 25.4) << "MM DIA ENDMILL)\n\n";
+        if (addChamferEdgeBreak) {
+            gMazak << "M0 (EDIT VARIABLE #110 TO YOUR TOOL NUMBER)\n";
+            gMazak << "#110 = 333 (CHANGE \"333\" TO YOUR TOOL NUMBER FOR THE SHARP-TIPPED 90 DEGREE CARBIDE CHAMFER MILL)\n\n";
+        }
 
         //////////////////////////
         // GROOVE OP
@@ -614,7 +685,13 @@ struct ODHelixGroove {
         gMazak << "G53 X0.\n";
         gMazak << "G53 Z0. Y0.\n";
         gMazak << "G53 Y-90.\n";
-        gMazak << "M0\n\n";
+        if (addChamferEdgeBreak || (edgebreakRadius > EPSILON)) {
+            gMazak << "M0\n\n";
+        }
+        else
+        {
+            gMazak << "M30";
+        }
 
         //////////////////////////
         // FILLET OP
@@ -686,6 +763,90 @@ struct ODHelixGroove {
             gMazak << "G53 X0.\n";
             gMazak << "G53 Z0. Y0.\n";
             gMazak << "G53 Y-90.\n";
+            if (addChamferEdgeBreak) {
+                gMazak << "M0\n\n";
+            }
+            else
+            {
+                gMazak << "M30";
+            }
+        }
+
+        //////////////////////////
+        // CHAMFER OP
+        /////////////////////////
+        if (addChamferEdgeBreak) {
+            gMazak << "N300 (CUT .254 MM CHAMFER)\n";
+            gMazak << "(SHARP-TIPPED CARBIDE CHAMFER MILL)\n";
+            gMazak << "(TOOLPATH IS " << formatGCodeDecimals<3>(chamferDrop * 25.4) << " DEEP AND " << formatGCodeDecimals<3>(chamferBackoff * 25.4) << " OFF THE WALL CREATING A .254 CHAMFER)\n";
+            gMazak << "(CUTTING SPEED : 55 MPM)\n";
+            gMazak << "(CHIP LOAD : .254 MMPR)\n";
+
+            gMazak << "G54\n";
+            gMazak << "G0 G53 X0. Y0. Z0.\n";
+            gMazak << "M200 (TOOL MODE)\n";
+            gMazak << "M212\n";
+            gMazak << "T#110 M6\n";
+            gMazak << "M1\n";
+            gMazak << "(INITIALIZE LOOP 4 COUNTER)\n";
+            gMazak << "#104 = 1\n\n";
+
+            gMazak << "G91 G28 X0. Y0.\n";
+            gMazak << "G28 Z0.\n";
+            gMazak << "M98 P1000 (TOOLCHANGE)\n";
+            gMazak << "G90\n";
+            gMazak << "G10.9 X0\n";
+            gMazak << "M108\n";
+            gMazak << "G53 G0 B0.\n";
+            gMazak << "M107\n";
+            gMazak << "G19\n";
+            gMazak << "M200\n";
+            gMazak << "G0 C0\n";
+            gMazak << "M212\n";
+            gMazak << "G0 C0. (INITIAL C COORDINATE)\n";
+            gMazak << "M210\n";
+            gMazak << "G69\n";
+            gMazak << "G0 B90.\n";
+            gMazak << "G68 X0. Y0. Z0. I0. J1. K0. R90.\n";
+            gMazak << "G17\n";
+            gMazak << "G0 X-200. Y0. Z" << formatGCodeDecimals<3>(((majorOD / 2) * 25.4) + 50) << " (50MM ABOVE OD)\n";
+            gMazak << "G97 G95 S" << chamferRPM << " M3\n";
+            gMazak << "M8\n\n";
+
+            gMazak << "G0 X" << formatGCodeDecimals<3>((xStart - toolClear) * 25.4) << "\n";
+            gMazak << "M212\n\n";
+
+            gMazak << "WHILE [#104 LE " << numStarts << "] DO 4\n";
+            gMazak << "  G91 C" << formatGCodeDecimals<3>(bIndex) << "\n";
+
+            gMazak << "  G0 G90 X" << formatGCodeDecimals<3>((xStart - toolClear) * 25.4) << " Y0.\n";
+            gMazak << "  G0 G91 Z-48.\n";
+            gMazak << "  G1 Z-2. F" << formatGCodeDecimals<3>(mmprChamfer) << " (MMPR)\n";
+            gMazak << "  Z" << formatGCodeDecimals<3>(-chamferDrop * 25.4) << "\n\n";
+
+            gMazak << "  (FORWARD PASS ON ONE WALL)\n";
+            gMazak << "  G1 Y" << formatGCodeDecimals<3>(forwardChamferOffset * 25.4) << "\n";
+            gMazak << "    G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4 * 0.5) << "\n";
+            gMazak << "  G1 X" << formatGCodeDecimals<3>(forwardX * 25.4) << " C" << formatGCodeDecimals<3>(-forwardB) << "\n";
+            gMazak << "    G07.1 C0\n";
+            gMazak << "  (REVERSE PASS ON OPPOSITE WALL)\n";
+            gMazak << "  G1 Y" << formatGCodeDecimals<3>(returnChamferOffset * 2.0 * 25.4) << "\n";
+            gMazak << "    G07.1 C" << formatGCodeDecimals<3>(majorOD * 25.4 * 0.5) << "\n";
+            gMazak << "  G1 X" << formatGCodeDecimals<3>(returnX * 25.4) << " C" << formatGCodeDecimals<3>(-returnB) << "\n";
+            gMazak << "    G07.1 C0\n";
+            gMazak << "  G0 Z50.\n";
+            gMazak << "  G0 G90 Y0.\n";
+
+            gMazak << "  G0 G90 Z" << formatGCodeDecimals<3>(((majorOD / 2) * 25.4) + 50) << " (50MM ABOVE OD)\n";
+            gMazak << "  #104 = #104 + 1\n";
+            gMazak << "END 4\n";
+            gMazak << "G0 X-200. M9\n\n";
+
+            gMazak << "G49\n";
+            gMazak << "G69\n";
+            gMazak << "G53 X0.\n";
+            gMazak << "G53 Z0. Y0.\n";
+            gMazak << "G53 Y-90.\n";
             gMazak << "M30";
         }
 
@@ -748,7 +909,12 @@ struct ODHelixGroove {
         gHaas << "X-8. M9\n";
         gHaas << "G0 G91 G28 Z0.\n";
         gHaas << "G0 G91 G28 Y0.\n";
-        gHaas << "M0\n\n";
+        if (addChamferEdgeBreak || (edgebreakRadius > EPSILON)) {
+            gHaas << "M0\n\n";
+		}
+		else {
+			gHaas << "M30\n\n";
+		}
 
         //////////////////////////
         // FILLET OP
@@ -766,6 +932,33 @@ struct ODHelixGroove {
             gHaas << "G0 G43 H05 Z5. M8\n";
             gHaas << "G0 X" << formatGCodeDecimals<4>(xStart - toolClear) << " (" << formatGCodeDecimals<4>(xClear) << " CLEAR)\n";
             gHaas << "G91 M97 P3 L" << numStarts << " B" << formatGCodeDecimals<3>(bIndex) << "\n";
+            gHaas << "G0 G90 Z5.\n";
+            gHaas << "X-8. M9\n";
+            gHaas << "G0 G91 G28 Z0.\n";
+            gHaas << "G0 G91 G28 Y0.\n";
+            if (addChamferEdgeBreak) {
+                gHaas << "M0\n\n";
+            }
+            else {
+                gHaas << "M30\n\n";
+            }
+        }
+
+        //////////////////////////
+        // CHAMFER OP
+        /////////////////////////
+        if (addChamferEdgeBreak) {
+            gHaas << "T15 M06 (SHARP-TIPPED 90 DEGREE CARBIDE CHAMFER MILL)\n";
+            gHaas << "(TOOLPATH IS " << formatGCodeDecimals<3>(chamferDrop) << " DEEP AND " << formatGCodeDecimals<3>(chamferBackoff) << " OFF THE WALL CREATING A .010 CHAMFER)\n";
+            gHaas << "(CUTTING SPEED : 180 SFPM)\n";
+            gHaas << "(CHIP LOAD : .010 IPR)\n";
+            gHaas << "G0 G91 G28 Z0.\n";
+            gHaas << "G0 G91 G28 Y0.\n";
+            gHaas << "G0 G17 G90 G56 A-90. B0.\n";
+            gHaas << "G0 X-8. Y0. S" << chamferRPM << " M03\n";
+            gHaas << "G0 G43 H15 Z5. M8\n";
+            gHaas << "G0 X" << formatGCodeDecimals<4>(xStart - toolClear) << "\n";
+            gHaas << "G91 M97 P4 L" << numStarts << " B" << formatGCodeDecimals<3>(bIndex) << "\n";
             gHaas << "G0 G90 Z5.\n";
             gHaas << "X-8. M9\n";
             gHaas << "G0 G91 G28 Z0.\n";
@@ -830,6 +1023,24 @@ struct ODHelixGroove {
             gHaas << "G0 Z5.\n";
             gHaas << "G0 G91 B" << formatGCodeDecimals<3>(bFilletMoveRight) << "\n";
 
+            gHaas << "M99\n";
+        }
+
+        //////////////////////////
+        // N4 CHAMFER SUBROUTINE
+        /////////////////////////
+        if (addChamferEdgeBreak) {
+            gHaas << "\nN4 (.010 CHAMFER SUBROUTINE)\n";
+            gHaas << "G0 G90 X" << formatGCodeDecimals<4>(xStart - toolClear) << " Y0.\n";
+            gHaas << "G0 G91 Z" << formatGCodeDecimals<4>(-5.0 + .1) << "\n";
+            gHaas << "G1 Z" << formatGCodeDecimals<4>(-chamferDrop - 0.1) << " F" << formatGCodeDecimals<3>(chamferIPM) << "\n";
+            gHaas << "(FORWARD CHAMFER PASS)\n";
+            gHaas << "G1 Y" << formatGCodeDecimals<4>(forwardChamferOffset) << "\n";
+            gHaas << "G1 X" << formatGCodeDecimals<4>(forwardX) << " B" << formatGCodeDecimals<4>(forwardB) << "\n";
+            gHaas << "(REVERSE CHAMFER PASS)\n";
+            gHaas << "G1 Y" << formatGCodeDecimals<4>(returnChamferOffset * 2.0) << "\n";
+            gHaas << "G1 X" << formatGCodeDecimals<4>(returnX) << " B" << formatGCodeDecimals<4>(returnB) << "\n";
+            gHaas << "G0 G90 Z5.\n";
             gHaas << "M99\n";
         }
         gHaas << "%";
