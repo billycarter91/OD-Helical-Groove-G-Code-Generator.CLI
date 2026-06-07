@@ -1063,7 +1063,7 @@ int main() {
 
     std::cout << "Copyright 2025 <billycarter.business@gmail.com>" << std::endl;
     std::cout << "=============================================================================" << std::endl
-        << "                  OD Helical Groove G-code Generator v1.2.1                  " << std::endl
+        << "                  OD Helical Groove G-code Generator v1.3.0                  " << std::endl
         << "            Creates .eia file for Mazak Integrex i-350H  (Metric)            " << std::endl
         << "                  Creates .nc file for Haas VF3  (Imperial)                  " << std::endl
         << "=============================================================================" << std::endl << std::endl;
